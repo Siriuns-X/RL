@@ -13,10 +13,8 @@ deltas_ref = []
 
 lr, gamma, eps = 0.8, 0.95, 1.0
 n_ep = 2000
-# decay = (0.05 / 1.0) ** (1 / (n_ep * 0.5))
 decay = 0.995
-succ_cnt = [0.0]
-# decay = 0.999
+succ_bool = []
 for ep in range(n_ep):
     Q_prev = Q.copy()
     s, _ = env.reset()
@@ -31,16 +29,14 @@ for ep in range(n_ep):
         Q[s, a] += lr * (r + gamma * np.max(Q[s2]) * (not term) - Q[s, a])
         s, done = s2, term or trunc
         succ = (r==1)
-    if succ:
-        succ_cnt.append(succ_cnt[-1] + 1)
-    else:
-        succ_cnt.append(succ_cnt[-1] + 0)
+
+    succ_bool.append(1.0 if succ else 0.0)
     deltas_prev.append(np.abs(Q - Q_prev).max())
     deltas_ref.append(np.abs(Q - Q_ref).max())
     eps = max(0.05, eps * decay)
 
 w = 200
-succ_rate = np.convolve(succ_cnt, np.ones(w)/w, mode="valid")
+succ_rate = np.convolve(succ_bool, np.ones(w)/w, mode="valid")
 # 图2
 fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(8, 6))
 
