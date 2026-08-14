@@ -16,10 +16,11 @@ env.action_space.seed(seed)
 torch.manual_seed(seed)
 net = nn.Sequential(nn.Linear(4,64), nn.ReLU(), nn.Linear(64,2))
 
-eps = 1.0
+eps = 0.5
 n = 300
 sum = 0
 vec = []
+batch_size = 64
 buffer = deque(maxlen=10_100)
 for i in range(n):
     obs, _ = env.reset()
@@ -39,11 +40,26 @@ for i in range(n):
     sum += cnt
     vec.append(cnt)
 
-np.savez("./data/init.npz", vec=vec, seed=seed)
+batch = random.sample(buffer, batch_size)
+states, actions, rewards, next_states, terminated, truncated = zip(*batch)
+
+states = torch.as_tensor(np.stack(states), dtype=torch.float32)
+next_states = torch.as_tensor(np.stack(next_states), dtype=torch.float32)
+actions = torch.tensor(actions, dtype=torch.int64)
+rewards = torch.tensor(rewards, dtype=torch.float32)
+terminated = torch.tensor(terminated, dtype=torch.bool)
+truncated = torch.tensor(truncated, dtype=torch.bool)
+
+all_q = net(states)
+rows = torch.arange(len(actions))
+chosen_q = all_q[rows, actions]
+# 等价于 all_q.gather(dim=1, index=actions.unsqueeze(1)).squeeze(1)
+
+# np.savez("./data/init.npz", vec=vec, seed=seed)
 
 fig, axes = plt.subplots(1, 1, figsize=(10, 7), sharey=True, sharex=True)
 # ax = axes[0]
 axes.plot([sum/n for _ in range(n)])
 axes.plot(vec)
-fig.savefig('./figs/init.png', dpi=300, bbox_inches='tight')
+# fig.savefig('./figs/init.png', dpi=300, bbox_inches='tight')
 plt.show()
