@@ -90,8 +90,10 @@ vec = []
 evaluate_vec = []
 losses = []
 q_mean = []
-buffer = deque(maxlen=hp["buffer_size"])
+reasons = {"pole": 0, "cart": 0, "trunc": 0}
+acts = []
 
+buffer = deque(maxlen=hp["buffer_size"])
 
 phi = lambda s: -0.4 * abs(s[0])
 for ep in range(hp["n_ep"]):
@@ -105,6 +107,7 @@ for ep in range(hp["n_ep"]):
             ) # 神秘batch, 为了防止后续argmax处dim不一致, 所以加上unsqueeze
         act = env.action_space.sample() if np.random.rand() < eps \
             else q_val.argmax(dim=1).item()
+        acts.append(act)
         next_obs, reward, terminated, truncated, _ = env.step(act)
         shaped_r = reward + hp["gamma"] * phi(next_obs) * (not terminated) - phi(obs)
         done = terminated or truncated
@@ -118,13 +121,17 @@ for ep in range(hp["n_ep"]):
 
         step_cnt += 1
         if step_cnt % hp["target_sync"] == 0:
-            target_net.load_state_dict(net.state_dict()) 
+            target_net.load_state_dict(net.state_dict())
+
+        if truncated: reasons["trunc"] += 1
+        elif abs(obs[0]) > 2.4: reasons["cart"] += 1
+        else: reasons["pole"] += 1
     if ep % 20 == 0:
         evaluate_vec.append(evaluate(env, net, n=10))
     total += cnt
     vec.append(cnt)
 
 
-np.savez(run_dir / "curves.npz", vec=vec, losses=losses, q_mean=q_mean, total=total, evaluate_vec=evaluate_vec)
+np.savez(run_dir / "curves.npz", vec=vec, losses=losses, q_mean=q_mean, total=total, evaluate_vec=evaluate_vec, reasons=reasons)
 torch.save(net.state_dict(), run_dir / "net.pt")
 print(run_dir)
