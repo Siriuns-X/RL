@@ -37,7 +37,9 @@ def train_step(net, target_net, opt, buffer, batch_size, gamma):
         return None
     s, a, r, s2, term = sample_batch(buffer, batch_size)
     with torch.no_grad():
-        target = r + gamma * target_net(s2).max(1).values * (~ term)
+        a_star = net(s2).argmax(1)
+        next_q = target_net(s2).gather(1, a_star.unsqueeze(1)).squeeze(1)
+        target = r + gamma * next_q * (~ term)
     loss = nn.functional.mse_loss(q_of(net, s, a), target)
     opt.zero_grad(); loss.backward(); opt.step()
     return loss.item()
