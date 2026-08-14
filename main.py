@@ -123,9 +123,9 @@ for ep in range(hp["n_ep"]):
         if step_cnt % hp["target_sync"] == 0:
             target_net.load_state_dict(net.state_dict())
 
-        if truncated: reasons["trunc"] += 1
-        elif abs(obs[0]) > 2.4: reasons["cart"] += 1
-        else: reasons["pole"] += 1
+    if truncated: reasons["trunc"] += 1
+    elif abs(obs[0]) > 2.4: reasons["cart"] += 1
+    else: reasons["pole"] += 1
     if ep % 20 == 0:
         evaluate_vec.append(evaluate(env, net, n=10))
     total += cnt
