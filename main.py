@@ -47,18 +47,19 @@ def train_step(net, target_net, opt, buffer, batch_size, gamma):
 def evaluate(env, net, n=10):
     if n <= 0: return -1
     cnt = 0
-    for i in range(n):
-        obs, _ = env.reset()
-        done = False
-        while not done:
-            q_val = net(
-                torch.tensor(obs, dtype=torch.float32).unsqueeze(0)
-                )
-            act = q_val.argmax(dim=1).item()
-            next_obs, reward, terminated, truncated, _ = env.step(act)
-            done = terminated or truncated
-            cnt += 1
-            obs = next_obs
+    with torch.no_grad():
+        for i in range(n):
+            obs, _ = env.reset()
+            done = False
+            while not done:
+                q_val = net(
+                    torch.tensor(obs, dtype=torch.float32).unsqueeze(0)
+                    )
+                act = q_val.argmax(dim=1).item()
+                next_obs, reward, terminated, truncated, _ = env.step(act)
+                done = terminated or truncated
+                cnt += 1
+                obs = next_obs
     return cnt/n
 
 hp = dict(seed=42, n_ep=600, lr=1e-3, gamma=0.99, batch_size=64,
