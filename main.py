@@ -93,6 +93,7 @@ q_mean = []
 buffer = deque(maxlen=hp["buffer_size"])
 
 
+phi = lambda s: -0.4 * abs(s[0])
 for ep in range(hp["n_ep"]):
     obs, _ = env.reset()
     done = False
@@ -105,8 +106,9 @@ for ep in range(hp["n_ep"]):
         act = env.action_space.sample() if np.random.rand() < eps \
             else q_val.argmax(dim=1).item()
         next_obs, reward, terminated, truncated, _ = env.step(act)
+        shaped_r = reward + hp["gamma"] * phi(next_obs) * (not terminated) - phi(obs)
         done = terminated or truncated
-        buffer.append((obs, act, reward, next_obs, terminated, truncated))
+        buffer.append((obs, act, shaped_r, next_obs, terminated, truncated))
 
         cnt += 1
         obs = next_obs
