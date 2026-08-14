@@ -1,14 +1,22 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import time
+from pathlib import Path
 
 plt.rcParams.update({"font.size": 14, "figure.dpi": 110})
 
-npz = np.load("./data/20260814_231011.npz")
+ts = "20260815_002859"
+run_dir = Path("runs") / ts
+npz = np.load(run_dir / "curves.npz")
 
-fig, axes = plt.subplots(1, 1, figsize=(10, 7), sharey=True, sharex=True)
-# ax = axes[0]
-vale = "vec"
-axes.plot(npz[vale])
-fig.savefig(f"./figs/{vale}_{time.strftime('%Y%m%d_%H%M%S')}.png", dpi=300, bbox_inches='tight')
-plt.show()
+
+vales = ["q_mean", "losses", "vec"]
+
+for vale in vales:
+    fig, ax = plt.subplots(figsize=(10, 7))
+    ax.plot(npz[vale])
+    fig.savefig(
+        run_dir / f"{vale}.png",
+        dpi=300,
+        bbox_inches="tight"
+    )
+    plt.close(fig)
