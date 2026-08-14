@@ -18,9 +18,9 @@ def new_run(hp, comment=""):
     d.mkdir(parents=True)
     meta = {"ts": ts, "commit": commit, "dirty": dirty,
             "comment": comment, **hp}
-    (d / "meta.json").write_text(json.dumps(meta, indent=2))
-    with open("runs/index.jsonl", "a") as f:
-        f.write(json.dumps(meta) + "\n")
+    (d / "meta.json").write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
+    with open("runs/index.jsonl", "a", encoding="utf-8") as f:
+        f.write(json.dumps(meta, ensure_ascii=False) + "\n")
     return d
 
 def sample_batch(buffer, batch_size, device="cpu"):
