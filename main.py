@@ -4,6 +4,7 @@ import numpy as np
 import torch, torch.nn as nn
 from collections import deque
 import random
+import time
 import copy
 
 def sample_batch(buffer, batch_size, device="cpu"):
@@ -65,7 +66,9 @@ for i in range(n):
 
         cnt += 1
         obs = next_obs
-        train_step(net, target_net, opt, buffer, batch_size, gamma)
+        l = train_step(net, target_net, opt, buffer, batch_size, gamma)
+        if l is not None: losses.append(l)
+        q_mean.append(q_val.max().item())
 
         step_cnt += 1
         if step_cnt % 500 == 0:
@@ -73,3 +76,13 @@ for i in range(n):
 
     total += cnt
     vec.append(cnt)
+
+np.savez(f"./data/{time.strftime('%Y%m%d_%H%M%S')}_main.npz",
+         losses=losses,
+         vec=vec,
+         seed=seed,
+         q_mean=q_mean,
+         total=total
+         )
+
+torch.save(net.state_dict(), "nets/net.pt")
