@@ -62,14 +62,14 @@ def evaluate(env, net, n=10):
                 obs = next_obs
     return cnt/n
 
-hp = dict(seed=42, n_ep=600, lr=1e-3, gamma=0.99, batch_size=64,
-          use_target=True, target_sync=500,
+hp = dict(seed=42, n_ep=600, lr=5e-4, layer_size=64, gamma=0.999, batch_size=64,
+          use_target=True, target_sync=1000,
           eps_start=1.0, eps_end=0.05,
           eps_decay_steps=10_000,
           buffer_size=100_000,
           )
 
-run_dir = new_run(hp, comment="scale n_ep and buffer size")
+run_dir = new_run(hp, comment="增大phi的系数绝对值")
 
 seed = hp["seed"]
 
@@ -78,7 +78,7 @@ obs, _ = env.reset(seed=seed)
 env.action_space.seed(seed)
 
 torch.manual_seed(seed)
-net = nn.Sequential(nn.Linear(4,64), nn.ReLU(), nn.Linear(64,2))
+net = nn.Sequential(nn.Linear(4,hp["layer_size"]), nn.ReLU(), nn.Linear(hp["layer_size"],2))
 target_net = copy.deepcopy(net)
 opt = torch.optim.Adam(net.parameters(), lr=hp["lr"])
 
