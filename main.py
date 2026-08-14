@@ -1,11 +1,22 @@
 import gymnasium as gym, numpy as np
 import numpy as np
-
+from datetime import datetime
+from pathlib import Path
+import json
 import torch, torch.nn as nn
 from collections import deque
 import random
-import time
 import copy
+
+def new_run(hp, comment=""):
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    d = Path("runs") / ts
+    d.mkdir(parents=True)
+    meta = {"ts": ts, "comment": comment, **hp}
+    (d / "meta.json").write_text(json.dumps(meta, indent=2))
+    with open("runs/index.jsonl", "a") as f:
+        f.write(json.dumps(meta) + "\n")
+    return d
 
 def sample_batch(buffer, batch_size, device="cpu"):
     s, a, r, s2, term, trunc = zip(*random.sample(buffer, batch_size))
@@ -26,7 +37,16 @@ def train_step(net, target_net, opt, buffer, batch_size, gamma):
     opt.zero_grad(); loss.backward(); opt.step()
     return loss.item()
 
-seed = 42
+hp = dict(seed=42, n_ep=600, lr=1e-3, gamma=0.99, batch_size=64,
+          use_target=True, target_sync=500,
+          eps_start=1.0, eps_end=0.05,
+          eps_decay_steps=10_000,
+          buffer_size=10_000,
+          )
+
+run_dir = new_run(hp, comment="baseline")
+
+seed = hp["seed"]
 
 env = gym.make("CartPole-v1")
 obs, _ = env.reset(seed=seed)
@@ -35,21 +55,19 @@ env.action_space.seed(seed)
 torch.manual_seed(seed)
 net = nn.Sequential(nn.Linear(4,64), nn.ReLU(), nn.Linear(64,2))
 target_net = copy.deepcopy(net)
-opt = torch.optim.Adam(net.parameters(), lr=1e-3)
+opt = torch.optim.Adam(net.parameters(), lr=hp["lr"])
 
-eps_start, eps_end, eps_decay_steps = 1.0, 0.05, 10_000
-eps = 1.0
+eps_start, eps_end, eps_decay_steps = hp["eps_start"], hp["eps_end"], hp["eps_decay_steps"]
+
 step_cnt = 0
-n = 300
 total = 0
 vec = []
 losses = []
 q_mean = []
-batch_size = 64
-gamma = 0.99
-buffer = deque(maxlen=10_100)
+buffer = deque(maxlen=hp["buffer_size"])
 
-for i in range(n):
+
+for i in range(hp["n_ep"]):
     obs, _ = env.reset()
     done = False
     cnt = 0
@@ -66,23 +84,18 @@ for i in range(n):
 
         cnt += 1
         obs = next_obs
-        l = train_step(net, target_net, opt, buffer, batch_size, gamma)
+        l = train_step(net, target_net, opt, buffer, hp["batch_size"], hp["gamma"])
         if l is not None: losses.append(l)
         q_mean.append(q_val.max().item())
 
         step_cnt += 1
-        if step_cnt % 500 == 0:
+        if step_cnt % hp["target_sync"] == 0:
             target_net.load_state_dict(net.state_dict()) 
 
     total += cnt
     vec.append(cnt)
 
-np.savez(f"./data/{time.strftime('%Y%m%d_%H%M%S')}_main.npz",
-         losses=losses,
-         vec=vec,
-         seed=seed,
-         q_mean=q_mean,
-         total=total
-         )
 
-torch.save(net.state_dict(), "nets/net.pt")
+np.savez(run_dir / "curves.npz", vec=vec, losses=losses, q_mean=q_mean, total=total)
+torch.save(net.state_dict(), run_dir / "net.pt")
+print(run_dir)
