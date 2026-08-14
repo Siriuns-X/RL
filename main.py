@@ -7,12 +7,17 @@ import torch, torch.nn as nn
 from collections import deque
 import random
 import copy
+import subprocess
 
 def new_run(hp, comment=""):
+    commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
+                        capture_output=True, text=True).stdout.strip()
+    dirty = bool(subprocess.run(["git", "diff", "--quiet"]).returncode)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     d = Path("runs") / ts
     d.mkdir(parents=True)
-    meta = {"ts": ts, "comment": comment, **hp}
+    meta = {"ts": ts, "commit": commit, "dirty": dirty,
+            "comment": comment, **hp}
     (d / "meta.json").write_text(json.dumps(meta, indent=2))
     with open("runs/index.jsonl", "a") as f:
         f.write(json.dumps(meta) + "\n")
