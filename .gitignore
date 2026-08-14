@@ -1,2 +1,4 @@
-# data/**
 diff
+
+runs/*
+!runs/index.jsonl
