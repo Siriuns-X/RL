@@ -62,7 +62,7 @@ def evaluate(env, net, n=10):
                 obs = next_obs
     return cnt/n
 
-hp = dict(seed=42, total_step=500_000, lr=5e-4, gamma=0.99, batch_size=128,
+hp = dict(seed=1731, total_step=500_000, lr=1e-3, gamma=0.99, batch_size=128,
           use_target=True, target_sync=500,
           eps_start=1.0, eps_end=0.05,
           eps_decay_steps=250_000,
@@ -100,8 +100,7 @@ total = 0
 vec = []
 evaluate_vec = []
 losses = []
-q_max = []
-q_min = []
+q_vec = []
 reasons = {"pole": 0, "cart": 0, "trunc": 0}
 acts = []
 
@@ -132,8 +131,7 @@ while step_cnt < hp["total_step"]:
         if step_cnt % hp["train_frequency"] == 0:
             l = train_step(net, target_net, opt, buffer, hp["batch_size"], hp["gamma"])
             if l is not None: losses.append((step_cnt, l))
-        q_max.append((step_cnt, q_val.max().item()))
-        q_min.append((step_cnt, q_val.min().item()))
+        q_vec.append((step_cnt, q_val.max().item(), q_val.min().item()))
         if step_cnt % hp["target_sync"] == 0:
             target_net.load_state_dict(net.state_dict())
         step_cnt += 1
@@ -148,7 +146,8 @@ while step_cnt < hp["total_step"]:
     ep_cnt += 1
 
 np.savez(run_dir / "curves.npz", vec=vec, losses=losses,
-         q_max=q_max, q_min=q_min, total=total,
-         evaluate_vec=evaluate_vec, reasons=reasons)
+         q_vec=q_vec, total=total,
+         evaluate_vec=evaluate_vec)
 torch.save(net.state_dict(), run_dir / "net.pt")
+(run_dir / "reasons.json").write_text(json.dumps(reasons), encoding="utf-8")
 print(run_dir)
