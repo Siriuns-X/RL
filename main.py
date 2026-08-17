@@ -62,19 +62,18 @@ def evaluate(env, net, n=10):
                 obs = next_obs
     return cnt/n
 
-hp = dict(seed=42, total_step=500_000, lr=1e-3, gamma=0.99, batch_size=128,
+hp = dict(seed=42, total_step=500_000, lr=5e-4, gamma=0.99, batch_size=128,
           use_target=True, target_sync=500,
           eps_start=1.0, eps_end=0.05,
           eps_decay_steps=250_000,
           buffer_size=10_000,
-          layer_size1=64,
-          layer_size2=128,
-          layer_size3=64,
+          layer_size1=120,
+          layer_size2=84,
           train_frequency=10,
           learning_start=10_000,
           )
 
-run_dir = new_run(hp, comment="减小网络复杂度, 看看可不可以复现")
+run_dir = new_run(hp, comment="尝试复现并画图")
 
 seed = hp["seed"]
 
@@ -101,7 +100,8 @@ total = 0
 vec = []
 evaluate_vec = []
 losses = []
-q_mean = []
+q_max = []
+q_min = []
 reasons = {"pole": 0, "cart": 0, "trunc": 0}
 acts = []
 
@@ -131,8 +131,9 @@ while step_cnt < hp["total_step"]:
         obs = next_obs
         if step_cnt % hp["train_frequency"] == 0:
             l = train_step(net, target_net, opt, buffer, hp["batch_size"], hp["gamma"])
-            if l is not None: losses.append(l)
-        q_mean.append(q_val.max().item())
+            if l is not None: losses.append((step_cnt, l))
+        q_max.append((step_cnt, q_val.max().item()))
+        q_min.append((step_cnt, q_val.min().item()))
         if step_cnt % hp["target_sync"] == 0:
             target_net.load_state_dict(net.state_dict())
         step_cnt += 1
@@ -141,12 +142,13 @@ while step_cnt < hp["total_step"]:
     elif abs(obs[0]) > 2.4: reasons["cart"] += 1
     else: reasons["pole"] += 1
     if ep_cnt % 10 == 0:
-        evaluate_vec.append(evaluate(env, net, n=100))
+        evaluate_vec.append((step_cnt, evaluate(env, net, n=100)))
     total += cnt
-    vec.append(cnt)
+    vec.append((step_cnt, cnt))
     ep_cnt += 1
 
-
-np.savez(run_dir / "curves.npz", vec=vec, losses=losses, q_mean=q_mean, total=total, evaluate_vec=evaluate_vec, reasons=reasons)
+np.savez(run_dir / "curves.npz", vec=vec, losses=losses,
+         q_max=q_max, q_min=q_min, total=total,
+         evaluate_vec=evaluate_vec, reasons=reasons)
 torch.save(net.state_dict(), run_dir / "net.pt")
 print(run_dir)
