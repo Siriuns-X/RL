@@ -62,29 +62,41 @@ def evaluate(env, net, n=10):
                 obs = next_obs
     return cnt/n
 
-hp = dict(seed=42, n_ep=600, lr=5e-4, layer_size=64, gamma=0.999, batch_size=64,
-          use_target=True, target_sync=1000,
+hp = dict(seed=42, total_step=500_000, lr=1e-3, gamma=0.99, batch_size=128,
+          use_target=True, target_sync=500,
           eps_start=1.0, eps_end=0.05,
-          eps_decay_steps=10_000,
-          buffer_size=100_000,
+          eps_decay_steps=250_000,
+          buffer_size=10_000,
+          layer_size1=64,
+          layer_size2=128,
+          layer_size3=64,
+          train_frequency=10,
+          learning_start=10_000,
           )
 
-run_dir = new_run(hp, comment="增大phi的系数绝对值")
+run_dir = new_run(hp, comment="减小网络复杂度, 看看可不可以复现")
 
 seed = hp["seed"]
+
+np.random.seed(seed)
+random.seed(seed)
 
 env = gym.make("CartPole-v1")
 obs, _ = env.reset(seed=seed)
 env.action_space.seed(seed)
 
 torch.manual_seed(seed)
-net = nn.Sequential(nn.Linear(4,hp["layer_size"]), nn.ReLU(), nn.Linear(hp["layer_size"],2))
+net = nn.Sequential(nn.Linear(4, hp["layer_size1"]),
+                    nn.ReLU(), nn.Linear(hp["layer_size1"], hp["layer_size2"]),
+                    nn.ReLU(), nn.Linear(hp["layer_size2"], 2),
+                    )
 target_net = copy.deepcopy(net)
 opt = torch.optim.Adam(net.parameters(), lr=hp["lr"])
 
 eps_start, eps_end, eps_decay_steps = hp["eps_start"], hp["eps_end"], hp["eps_decay_steps"]
 
 step_cnt = 0
+ep_cnt = 0
 total = 0
 vec = []
 evaluate_vec = []
@@ -95,8 +107,8 @@ acts = []
 
 buffer = deque(maxlen=hp["buffer_size"])
 
-phi = lambda s: -0.4 * abs(s[0])
-for ep in range(hp["n_ep"]):
+phi = lambda s: -30 * abs(s[0])
+while step_cnt < hp["total_step"]:
     obs, _ = env.reset()
     done = False
     cnt = 0
@@ -111,25 +123,28 @@ for ep in range(hp["n_ep"]):
         next_obs, reward, terminated, truncated, _ = env.step(act)
         shaped_r = reward + hp["gamma"] * phi(next_obs) * (not terminated) - phi(obs)
         done = terminated or truncated
+        if terminated:
+            shaped_r -= 11
         buffer.append((obs, act, shaped_r, next_obs, terminated, truncated))
 
         cnt += 1
         obs = next_obs
-        l = train_step(net, target_net, opt, buffer, hp["batch_size"], hp["gamma"])
-        if l is not None: losses.append(l)
+        if step_cnt % hp["train_frequency"] == 0:
+            l = train_step(net, target_net, opt, buffer, hp["batch_size"], hp["gamma"])
+            if l is not None: losses.append(l)
         q_mean.append(q_val.max().item())
-
-        step_cnt += 1
         if step_cnt % hp["target_sync"] == 0:
             target_net.load_state_dict(net.state_dict())
+        step_cnt += 1
 
     if truncated: reasons["trunc"] += 1
     elif abs(obs[0]) > 2.4: reasons["cart"] += 1
     else: reasons["pole"] += 1
-    if ep % 20 == 0:
-        evaluate_vec.append(evaluate(env, net, n=10))
+    if ep_cnt % 10 == 0:
+        evaluate_vec.append(evaluate(env, net, n=100))
     total += cnt
     vec.append(cnt)
+    ep_cnt += 1
 
 
 np.savez(run_dir / "curves.npz", vec=vec, losses=losses, q_mean=q_mean, total=total, evaluate_vec=evaluate_vec, reasons=reasons)
